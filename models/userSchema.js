@@ -33,6 +33,14 @@ const userSchema = new mongoose.Schema({
     profile: { // Assuming this was for a profile picture URL, let's keep it.
         type: String,
     },
+    reportedBy: [
+        {
+          reporterId: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
+          reason: String,
+          reportedAt: { type: Date, default: Date.now },
+        },
+      ],
+      
     // --- NEW FIELDS FOR PROFILE ---
     skills: {
         type: [String], // Array of strings for skills

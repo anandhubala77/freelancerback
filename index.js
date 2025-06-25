@@ -14,6 +14,7 @@ const cors = require('cors');
 const router = require('./routes/router');
 const quotationRoutes = require('./routes/quotationRoutes');
 const applicationRoute = require('./routes/applicationRoute');
+const paymentRoute = require('./routes/paymentRoute');
 // 6) create express server
 const pfServer = express();
 
@@ -28,6 +29,7 @@ pfServer.use('/', router);
 
 pfServer.use('/', quotationRoutes);
 pfServer.use('/', applicationRoute);
+pfServer.use('/', paymentRoute);
 
 // 10) define PORT
 const PORT = 5000;

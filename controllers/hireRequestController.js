@@ -20,3 +20,9 @@ exports.sendHireRequest = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
+// controllers/hireRequestController.js
+
+
+

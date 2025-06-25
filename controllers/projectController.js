@@ -130,10 +130,52 @@ const deleteProject = asyncHandler(async (req, res) => {
 });
 
 
+const reportProject = async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { reason } = req.body;
+    const reporterId = req.userId;
+
+    if (!reason) {
+      return res.status(400).json({ message: "Reason is required." });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found." });
+    }
+
+    const alreadyReported = project.reports?.some(
+      (report) => report.reportedBy.toString() === reporterId
+    );
+
+    if (alreadyReported) {
+      return res.status(400).json({ message: "You already reported this project." });
+    }
+
+    // ✅ Push the report into `reports` array
+    project.reports.push({
+      reportedBy: reporterId,
+      reason,
+    });
+
+    await project.save();
+
+    res.status(200).json({ message: "Project reported successfully" });
+  } catch (err) {
+    console.error("Error reporting project:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+
+
 module.exports = {
   createProject,
   getProjects,
   getProjectById,
   updateProject,
   deleteProject,
+  reportProject,
 };

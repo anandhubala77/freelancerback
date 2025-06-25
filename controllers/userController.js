@@ -120,50 +120,50 @@ exports.updateUserProfile = async (req, res) => {
   const { name, lastName, email, skills, education, experience } = req.body;
 
   try {
-      const user = await users.findById(userId);
+    const user = await users.findById(userId);
 
-      if (!user) {
-          return res.status(404).json({ message: 'User not found.' });
-      }
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
 
-      // Update fields if provided in the request body
-      if (name !== undefined) user.name = name;
-      if (lastName !== undefined) user.lastName = lastName;
-      if (email !== undefined) user.email = email; // Be cautious with email updates (e.g., unique check)
-      if (skills !== undefined) user.skills = skills;
-      if (education !== undefined) user.education = education;
-      if (experience !== undefined) user.experience = experience;
+    // Update fields if provided in the request body
+    if (name !== undefined) user.name = name;
+    if (lastName !== undefined) user.lastName = lastName;
+    if (email !== undefined) user.email = email; // Be cautious with email updates (e.g., unique check)
+    if (skills !== undefined) user.skills = skills;
+    if (education !== undefined) user.education = education;
+    if (experience !== undefined) user.experience = experience;
 
-      // Optionally, handle profile picture URL update here if needed
-      // if (profile !== undefined) user.profile = profile;
+    // Optionally, handle profile picture URL update here if needed
+    // if (profile !== undefined) user.profile = profile;
 
-      await user.save(); // Save the updated user document
+    await user.save(); // Save the updated user document
 
-      // Respond with the updated safe user data
-      const safeUser = {
-          _id: user._id,
-          name: user.name,
-          lastName: user.lastName,
-          email: user.email,
-          role: user.role,
-          skills: user.skills,
-          education: user.education,
-          experience: user.experience,
-          profile: user.profile, // Include profile URL if relevant
-          // Exclude sensitive data like password
-      };
+    // Respond with the updated safe user data
+    const safeUser = {
+      _id: user._id,
+      name: user.name,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      skills: user.skills,
+      education: user.education,
+      experience: user.experience,
+      profile: user.profile, // Include profile URL if relevant
+      // Exclude sensitive data like password
+    };
 
-      return res.status(200).json({
-          message: 'Profile updated successfully!',
-          user_data: safeUser,
-      });
+    return res.status(200).json({
+      message: 'Profile updated successfully!',
+      user_data: safeUser,
+    });
 
   } catch (error) {
-      console.error("Error updating user profile:", error);
-      if (error.code === 11000) { // Duplicate key error (e.g., if email is unique and already exists)
-          return res.status(400).json({ message: 'Email already in use.' });
-      }
-      return res.status(500).json({ message: 'Failed to update profile.' });
+    console.error("Error updating user profile:", error);
+    if (error.code === 11000) { // Duplicate key error (e.g., if email is unique and already exists)
+      return res.status(400).json({ message: 'Email already in use.' });
+    }
+    return res.status(500).json({ message: 'Failed to update profile.' });
   }
 };
 
@@ -172,17 +172,17 @@ exports.getLoggedInUserProfile = async (req, res) => {
   const userId = req.userId; // From auth middleware
 
   try {
-      const user = await users.findById(userId).select('-password'); // Exclude password
+    const user = await users.findById(userId).select('-password'); // Exclude password
 
-      if (!user) {
-          return res.status(404).json({ message: 'User profile not found.' });
-      }
+    if (!user) {
+      return res.status(404).json({ message: 'User profile not found.' });
+    }
 
-      return res.status(200).json({ user_data: user });
+    return res.status(200).json({ user_data: user });
 
   } catch (error) {
-      console.error('Error fetching user profile:', error);
-      return res.status(500).json({ message: 'Failed to fetch user profile.' });
+    console.error('Error fetching user profile:', error);
+    return res.status(500).json({ message: 'Failed to fetch user profile.' });
   }
 };
 
@@ -197,3 +197,21 @@ exports.getJobSeekerById = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+exports.reportJobSeeker = async (req, res) => {
+  try {
+    const user = await users.findById(req.params.id);
+    if (!user || user.role !== "jobseeker")
+      return res.status(404).json({ message: "Job seeker not found" });
+
+    user.reportedBy.push({
+      reporterId: req.userId,
+      reason: req.body.reason
+    });
+
+    await user.save();
+    res.status(200).json({ message: "Job seeker reported as spam" });
+  } catch (err) {
+    res.status(500).json({ message: "Error reporting user", error: err });
+  }
+};
+

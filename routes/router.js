@@ -29,6 +29,8 @@ router.get('/user/profile', authenticateToken, userController.getLoggedInUserPro
 // Optional: You could add authorizeRoles('jobseeker') here if only jobseekers can update this specific profile.
 router.put('/user/profile', authenticateToken, userController.updateUserProfile);
 
+router.post("/users/:id/report", authenticateToken, userController.reportJobSeeker);
+
 // --- Project Routes ---
 // Create project (requires authentication, and potentially a 'company' or 'employer' role)
 // Assuming only specific roles (e.g., 'company', 'employer') can post projects.
@@ -47,6 +49,9 @@ router.put('/projects/:id', authenticateToken, projectController.updateProject);
 
 // Delete project (requires authentication and owner authorization)
 router.delete('/projects/:id', authenticateToken, projectController.deleteProject);
+
+router.post("/projects/:id/report", authenticateToken, projectController.reportProject);
+
 //job hire
 
 // New route to get job seeker by ID

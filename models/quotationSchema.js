@@ -32,6 +32,11 @@ const quotationSchema = new mongoose.Schema({
     enum: ['pending', 'accepted', 'rejected', "withdrawn"],
     default: 'pending',
   },
+  submission: {
+    link: String,
+    message: String,
+    submittedAt: Date,
+  },
 });
 
 module.exports = mongoose.model("Quotation", quotationSchema);
