@@ -1,4 +1,4 @@
-const Payment = require('../models/paymentSchema');
+  const Payment = require('../models/paymentSchema');
 const razorpay = require("../utils/razorpay");
 
 exports.createPaymentOrder = async (req, res) => {
@@ -109,6 +109,21 @@ exports.getSentPaymentsHiring = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch sent payments", error: err.message });
   }
 };
+// Get all payments for admin
+exports.getAllPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find()
+      .populate("jobId", "title")
+      .populate("quotationId", "_id")
+      .populate("paidBy", "name email role")
+      .populate("paidTo", "name email role");
+
+    res.status(200).json(payments);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch all payments", error });
+  }
+};
+
 
 
 

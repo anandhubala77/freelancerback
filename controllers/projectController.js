@@ -1,35 +1,67 @@
-// freelancerbackend/controllers/projectController.js
 const Project = require('../models/projectSchema');
 const asyncHandler = require('express-async-handler');
 
-// @desc    Create a new project
-// @route   POST /api/projects
-// @access  Private (only logged-in users can post)
-const createProject = asyncHandler(async (req, res) => {
-  const { title, description, budget, skillsRequired, timeline, category, location } = req.body;
 
+const createProject = asyncHandler(async (req, res) => {
+  console.log("REQ.BODY:", req.body); // ✅ log body
+  console.log("REQ.FILE:", req.file); // ✅ log uploaded file
+
+  const {
+    title,
+    description,
+    budget,
+    skillsRequired,
+    timeline,
+    category,
+    location,
+  } = req.body;
+
+  // Validate required fields
   if (!title || !description || !budget || !category) {
     res.status(400);
-    throw new Error('Please fill all required project fields: title, description, budget, category.');
+    throw new Error(
+      'Please fill all required project fields: title, description, budget, category.'
+    );
   }
 
-  if (typeof budget !== 'number' || budget < 0) {
+  // Parse budget
+  const parsedBudget = parseFloat(budget);
+  if (isNaN(parsedBudget) || parsedBudget < 0) {
     res.status(400);
     throw new Error('Budget must be a positive number.');
   }
 
-  // --- FIX APPLIED HERE ---
-  const userId = req.userId; // Use req.userId which is set by your authenticateToken middleware
+  // Handle userId from middleware
+  const userId = req.userId || (req.user && req.user._id);
+  if (!userId) {
+    res.status(401);
+    throw new Error("Unauthorized: Missing user ID.");
+  }
+
+  // Handle image from multer
+  const image = req.file ? req.file.filename : "";
+
+  // Handle skills (if sent as comma-separated string or array)
+  let skillsArray = [];
+  if (typeof skillsRequired === 'string') {
+    skillsArray = skillsRequired
+      .split(',')
+      .map((skill) => skill.trim())
+      .filter(Boolean);
+  } else if (Array.isArray(skillsRequired)) {
+    skillsArray = skillsRequired.map((s) => s.trim()).filter(Boolean);
+  }
 
   const project = await Project.create({
     userId,
     title,
     description,
-    budget,
-    skillsRequired: skillsRequired || [],
+    budget: parsedBudget,
+    skillsRequired: skillsArray,
     timeline: timeline || 'Flexible',
     category,
     location: location || 'Remote',
+    image,
     status: 'posted',
   });
 
@@ -39,18 +71,29 @@ const createProject = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get all projects (e.g., for Browse)
+
+
+// --- rest of your unchanged functions ---
+
+// @desc    Get all projects
 // @route   GET /api/projects
-// @access  Public (anyone can view projects)
+// @access  Public
 const getProjects = asyncHandler(async (req, res) => {
   const projects = await Project.find({})
     .populate('userId', 'name email')
-    .sort({ datePosted: -1 });
+    .sort({ createdAt: -1 });
 
-  res.status(200).json(projects);
+  const fullProjects = projects.map((project) => ({
+    ...project._doc,
+    image: project.image
+      ? `${req.protocol}://${req.get('host')}/uploads/${project.image}`
+      : "",
+  }));
+
+  res.status(200).json(fullProjects);
 });
 
-// @desc    Get a single project by ID
+// @desc    Get single project
 // @route   GET /api/projects/:id
 // @access  Public
 const getProjectById = asyncHandler(async (req, res) => {
@@ -61,14 +104,34 @@ const getProjectById = asyncHandler(async (req, res) => {
     throw new Error('Project not found.');
   }
 
-  res.status(200).json(project);
+  const fullProject = {
+    ...project._doc,
+    image: project.image
+      ? `${req.protocol}://${req.get('host')}/uploads/${project.image}`
+      : "",
+  };
+
+  res.status(200).json(fullProject);
 });
 
-// @desc    Update a project
+// @desc    Update project
 // @route   PUT /api/projects/:id
-// @access  Private (only project owner)
+// @access  Private
 const updateProject = asyncHandler(async (req, res) => {
-  const { title, description, budget, skillsRequired, timeline, category, location, status, assignedTo, progress, completionDate } = req.body;
+  const {
+    title,
+    description,
+    budget,
+    skillsRequired,
+    timeline,
+    category,
+    location,
+    status,
+    assignedTo,
+    progress,
+    completionDate,
+    image,
+  } = req.body;
 
   let project = await Project.findById(req.params.id);
 
@@ -77,14 +140,11 @@ const updateProject = asyncHandler(async (req, res) => {
     throw new Error('Project not found.');
   }
 
-  // --- FIX APPLIED HERE ---
-  // Check if the logged-in user is the project owner
-  if (project.userId.toString() !== req.userId.toString()) { // Compare with req.userId
+  if (project.userId.toString() !== req.userId.toString()) {
     res.status(403);
     throw new Error('Not authorized to update this project.');
   }
 
-  // Update fields
   project.title = title || project.title;
   project.description = description || project.description;
   project.budget = budget !== undefined ? budget : project.budget;
@@ -92,6 +152,7 @@ const updateProject = asyncHandler(async (req, res) => {
   project.timeline = timeline || project.timeline;
   project.category = category || project.category;
   project.location = location || project.location;
+  project.image = image || project.image;
 
   if (status) project.status = status;
   if (assignedTo) project.assignedTo = assignedTo;
@@ -102,13 +163,18 @@ const updateProject = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     message: 'Project updated successfully!',
-    project: updatedProject,
+    project: {
+      ...updatedProject._doc,
+      image: updatedProject.image
+        ? `${req.protocol}://${req.get('host')}/uploads/${updatedProject.image}`
+        : "",
+    },
   });
 });
 
-// @desc    Delete a project
+// @desc    Delete project
 // @route   DELETE /api/projects/:id
-// @access  Private (only project owner)
+// @access  Private
 const deleteProject = asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
 
@@ -117,9 +183,7 @@ const deleteProject = asyncHandler(async (req, res) => {
     throw new Error('Project not found.');
   }
 
-  // --- FIX APPLIED HERE ---
-  // Check if the logged-in user is the project owner
-  if (project.userId.toString() !== req.userId.toString()) { // Compare with req.userId
+  if (project.userId.toString() !== req.userId.toString()) {
     res.status(403);
     throw new Error('Not authorized to delete this project.');
   }
@@ -129,8 +193,10 @@ const deleteProject = asyncHandler(async (req, res) => {
   res.status(200).json({ message: 'Project removed successfully.' });
 });
 
-
-const reportProject = async (req, res) => {
+// @desc    Report a project
+// @route   POST /api/projects/:id/report
+// @access  Private
+const reportProject = asyncHandler(async (req, res) => {
   try {
     const projectId = req.params.id;
     const { reason } = req.body;
@@ -153,7 +219,6 @@ const reportProject = async (req, res) => {
       return res.status(400).json({ message: "You already reported this project." });
     }
 
-    // ✅ Push the report into `reports` array
     project.reports.push({
       reportedBy: reporterId,
       reason,
@@ -166,10 +231,7 @@ const reportProject = async (req, res) => {
     console.error("Error reporting project:", err);
     res.status(500).json({ message: "Server error" });
   }
-};
-
-
-
+});
 
 module.exports = {
   createProject,
@@ -179,3 +241,4 @@ module.exports = {
   deleteProject,
   reportProject,
 };
+// Note: Ensure that the projectSchema includes the necessary fields like 'reports' to handle reporting functionality.

@@ -2,6 +2,7 @@
 
 const express = require('express');
 const router = new express.Router();
+const upload = require("../middleware/uploadMiddleware");
 
 // Import Controllers
 const userController = require("../controllers/userController");
@@ -36,8 +37,7 @@ router.post("/users/:id/report", authenticateToken, userController.reportJobSeek
 // Assuming only specific roles (e.g., 'company', 'employer') can post projects.
 // If anyone logged in can post, just use authenticateToken.
 // Example for roles: router.post('/projects', authenticateToken, authorizeRoles('company', 'employer'), projectController.createProject);
-router.post('/projects', authenticateToken, projectController.createProject); // Use authenticateToken for now
-
+router.post("/projects", authenticateToken, upload.single("image"),projectController.createProject); // Use authenticateToken for now
 // Get all projects (public)
 router.get('/projects', projectController.getProjects);
 

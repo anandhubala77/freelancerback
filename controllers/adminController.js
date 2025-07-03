@@ -56,4 +56,44 @@ exports.deleteUser = async (req, res) => {
       res.status(500).json({ message: "Failed to delete user" });
     }
   };
+
+  // GET all project reports and user reports for admin
+  exports.getFraudReports = async (req, res) => {
+    try {
+      // --- 1. Fetch Project Reports ---
+      const projectsWithReports = await Project.find({
+        "reports.0": { $exists: true },
+      }).select("_id reports");
+  
+      const projectReports = projectsWithReports.flatMap((project) =>
+        project.reports.map((report) => ({
+          projectId: project._id,
+          reportedBy: report.reportedBy,
+          reason: report.reason,
+          createdAt: report.createdAt,
+        }))
+      );
+  
+      // --- 2. Fetch Jobseeker Reports ---
+      const usersWithReports = await User.find({
+        role: "jobseeker",
+        "reportedBy.0": { $exists: true },
+      }).select("_id reportedBy");
+  
+      const userReports = usersWithReports.flatMap((user) =>
+        user.reportedBy.map((report) => ({
+          jobseekerId: user._id,
+          reportedBy: report.reporterId,
+          reason: report.reason,
+          reportedAt: report.reportedAt,
+        }))
+      );
+  
+      return res.status(200).json({ projectReports, userReports });
+    } catch (error) {
+      console.error("Error fetching fraud reports:", error);
+      res.status(500).json({ message: "Server Error", error });
+    }
+  };
+  
   
