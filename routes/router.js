@@ -24,6 +24,11 @@ router.post("/admin/login", userController.loginAdmin);
 // Get logged-in user's profile
 // This route needs authentication to know who is requesting their profile
 router.get('/user/profile', authenticateToken, userController.getLoggedInUserProfile);
+router.put('/user/update-password', authenticateToken, userController.updatePassword);
+
+router.put('/user/profile', authenticateToken, userController.updateUserProfile);
+  
+
 
 // Update logged-in user's profile
 // This route needs authentication to know who is updating their profile
@@ -31,6 +36,8 @@ router.get('/user/profile', authenticateToken, userController.getLoggedInUserPro
 router.put('/user/profile', authenticateToken, userController.updateUserProfile);
 
 router.post("/users/:id/report", authenticateToken, userController.reportJobSeeker);
+
+
 
 // --- Project Routes ---
 // Create project (requires authentication, and potentially a 'company' or 'employer' role)

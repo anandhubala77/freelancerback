@@ -1,0 +1,447 @@
+// models/userSchema.js
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema({
+
+    
+    name: {
+        type: String,
+        require: true,
+    },
+    lastName: {
+        type: String,
+        require: true,
+    },
+    email: {
+        type: String,
+        require: true,
+        unique: true, // Email should be unique
+    },
+    password: {
+        type: String,
+        require: true,
+    },
+    companyName: {
+        type: String,
+      },
+    companyDescription: {
+        type: String,
+      },      
+    role: {
+        type: String,
+        enum: ['jobseeker', 'hiringperson', 'admin'],
+        required: true
+    },
+    google: {
+        type: String,
+    },
+    linkedin: {
+        type: String,
+    },
+    profile: { // Assuming this was for a profile picture URL, let's keep it.
+        type: String,
+    },
+    reportedBy: [
+        {
+          reporterId: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
+          reason: String,
+          reportedAt: { type: Date, default: Date.now },
+        },
+      ],
+      
+    // --- NEW FIELDS FOR PROFILE ---
+    skills: {
+        type: [String], // Array of strings for skills
+        default: []
+    },
+    education: [{ // Array of education objects
+        degree: { type: String },
+        institution: { type: String },
+        year: { type: String } // Or Number, depending on your preference
+    }],
+    experience: [{ // Array of experience objects
+        title: { type: String },
+        company: { type: String },
+        startDate: { type: String }, // Or Date type if you want to handle dates
+        endDate: { type: String },   // Or Date type
+        description: { type: String }
+    }]
+}, { timestamps: true }); // Add timestamps for createdAt and updatedAt
+
+const users = mongoose.model('users', userSchema);
+module.exports = users;
+
+const users = require("../models/userSchema");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+require("dotenv").config();
+
+exports.registerUser = async (req, res) => {
+  console.log("inside the user controller");
+  console.log(req.body);
+
+  const { name, lastName, email, password, role } = req.body;
+  try {
+    const existingUser = await users.findOne({ email: email });
+    if (existingUser) {
+      return res.status(409).json("Account already exists, please login");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = new users({
+      name,
+      lastName,
+      email,
+      password: hashedPassword,
+      role,
+      google: "",
+      linkedin: "",
+    });
+
+    await newUser.save();
+    return res.status(201).json("Register request received");
+  } catch (error) {
+    console.error("Register error:", error);
+    return res.status(500).json("Register request failed");
+  }
+};
+
+// User login only
+exports.loginUser = async (req, res) => {
+  const { email, password } = req.body;
+  console.log("inside the user controller", email, password);
+
+  try {
+    const existingUser = await users.findOne({ email });
+
+    if (!existingUser) {
+      return res.status(406).json("Login failed due to invalid email or password");
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(password, existingUser.password);
+    if (!isPasswordCorrect) {
+      return res.status(406).json("Login failed due to invalid email or password");
+    }
+
+    const token = jwt.sign(
+      { userId: existingUser._id, role: existingUser.role },
+      process.env.JWT_SECRET || "supersecretkey",
+      { expiresIn: "1d" }
+    );
+
+    const safeUser = {
+      _id: existingUser._id,
+      name: existingUser.name,
+      lastName: existingUser.lastName,
+      email: existingUser.email,
+      role: existingUser.role,
+    };
+
+    return res.status(200).json({
+      user_data: safeUser,
+      jwt_Token: token,
+      message: "Login successful",
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    return res.status(500).json("Login failed");
+  }
+};
+
+// Admin login only
+
+exports.loginAdmin = async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    // Find user with role admin
+    const admin = await users.findOne({ email, role: "admin" });
+
+    if (!admin || !(await bcrypt.compare(password, admin.password))) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, admin.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const token = jwt.sign(
+      { id: admin._id, role: admin.role },
+      process.env.JWT_SECRET || "supersecretkey",
+      { expiresIn: "1d" }
+    );
+
+    res.status(200).json({
+      message: "Admin login successful",
+      token,
+      admin: {
+        id: admin._id,
+        email: admin.email,
+        role: admin.role,
+      },
+    });
+  } catch (error) {
+    console.error("Admin login error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+exports.updateUserProfile = async (req, res) => {
+  // req.userId is set by the authenticateToken middleware
+  const userId = req.userId;
+  const { name, lastName, email, skills, education, experience } = req.body;
+
+  try {
+    const user = await users.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Update fields if provided in the request body
+    if (name !== undefined) user.name = name;
+    if (lastName !== undefined) user.lastName = lastName;
+    if (email !== undefined) user.email = email; // Be cautious with email updates (e.g., unique check)
+    if (skills !== undefined) user.skills = skills;
+    if (education !== undefined) user.education = education;
+    if (experience !== undefined) user.experience = experience;
+
+    // Optionally, handle profile picture URL update here if needed
+    // if (profile !== undefined) user.profile = profile;
+
+    await user.save(); // Save the updated user document
+
+    // Respond with the updated safe user data
+    const safeUser = {
+      _id: user._id,
+      name: user.name,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      skills: user.skills,
+      education: user.education,
+      experience: user.experience,
+      profile: user.profile, // Include profile URL if relevant
+      // Exclude sensitive data like password
+    };
+
+    return res.status(200).json({
+      message: 'Profile updated successfully!',
+      user_data: safeUser,
+    });
+
+  } catch (error) {
+    console.error("Error updating user profile:", error);
+    if (error.code === 11000) { // Duplicate key error (e.g., if email is unique and already exists)
+      return res.status(400).json({ message: 'Email already in use.' });
+    }
+    return res.status(500).json({ message: 'Failed to update profile.' });
+  }
+};
+
+// You might also want a controller to fetch a user's *own* profile
+exports.getLoggedInUserProfile = async (req, res) => {
+  const userId = req.userId; // From auth middleware
+
+  try {
+    const user = await users.findById(userId).select('-password'); // Exclude password
+
+    if (!user) {
+      return res.status(404).json({ message: 'User profile not found.' });
+    }
+
+    return res.status(200).json({ user_data: user });
+
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return res.status(500).json({ message: 'Failed to fetch user profile.' });
+  }
+};
+
+exports.getJobSeekerById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user || user.role !== "jobseeker") {
+      return res.status(404).json({ message: "Job seeker not found" });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+exports.reportJobSeeker = async (req, res) => {
+  try {
+    const user = await users.findById(req.params.id);
+    if (!user || user.role !== "jobseeker")
+      return res.status(404).json({ message: "Job seeker not found" });
+
+    user.reportedBy.push({
+      reporterId: req.userId,
+      reason: req.body.reason
+    });
+
+    await user.save();
+    res.status(200).json({ message: "Job seeker reported as spam" });
+  } catch (err) {
+    res.status(500).json({ message: "Error reporting user", error: err });
+  }
+};
+exports.updatePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.userId; // From auth middleware
+
+    const user = await users.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) return res.status(400).json({ message: "Old password is incorrect" });
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedNewPassword;
+
+    await user.save();
+    return res.status(200).json({ message: "Password updated successfully" });
+  } catch (err) {
+    console.error("Error updating password:", err);
+    res.status(500).json({ message: "Server error while updating password" });
+  }
+};
+exports.uploadProfileImage = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const filePath = req.file ? req.file.path : null;
+
+    if (!filePath) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    const user = await users.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.profile = filePath; // Save image path in the `profile` field
+    await user.save();
+
+    return res.status(200).json({
+      message: "Profile image uploaded successfully",
+      profile: user.profile,
+    });
+  } catch (err) {
+    console.error("Upload error:", err);
+    return res.status(500).json({ message: "Failed to upload profile image" });
+  }
+};
+
+
+
+// middleware/uploadMiddleware.js
+const multer = require("multer");
+const path = require("path");
+
+// storage config
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/'); // or your preferred directory
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+
+
+
+// optional: file filter
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only images are allowed"));
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
+
+module.exports = upload;
+
+// freelancerbackend/routes/router.js
+
+const express = require('express');
+const router = new express.Router();
+const upload = require("../middleware/uploadMiddleware");
+
+// Import Controllers
+const userController = require("../controllers/userController");
+const projectController = require("../controllers/projectController"); // Keep this import
+const hireRequestController = require("../controllers/hireRequestController");
+
+
+// Import Middleware
+const { authenticateToken, authorizeRoles } = require("../middleware/authMiddleware");
+
+// --- User Routes ---
+// 3.1 user registration
+router.post('/user/register', userController.registerUser);
+// user login
+router.post('/user/login', userController.loginUser);
+// admin login
+router.post("/admin/login", userController.loginAdmin);
+
+// Get logged-in user's profile
+// This route needs authentication to know who is requesting their profile
+router.get('/user/profile', authenticateToken, userController.getLoggedInUserProfile);
+router.put('/user/update-password', authenticateToken, userController.updatePassword);
+// Add after existing user routes
+router.put(
+    "/user/upload-profile",
+    authenticateToken,
+    upload.single("profile"), // 'profile' is the field name in the frontend form
+    userController.uploadProfileImage
+  );
+  
+
+
+// Update logged-in user's profile
+// This route needs authentication to know who is updating their profile
+// Optional: You could add authorizeRoles('jobseeker') here if only jobseekers can update this specific profile.
+router.put('/user/profile', authenticateToken, userController.updateUserProfile);
+
+router.post("/users/:id/report", authenticateToken, userController.reportJobSeeker);
+
+
+
+// --- Project Routes ---
+// Create project (requires authentication, and potentially a 'company' or 'employer' role)
+// Assuming only specific roles (e.g., 'company', 'employer') can post projects.
+// If anyone logged in can post, just use authenticateToken.
+// Example for roles: router.post('/projects', authenticateToken, authorizeRoles('company', 'employer'), projectController.createProject);
+router.post("/projects", authenticateToken, upload.single("image"),projectController.createProject); // Use authenticateToken for now
+// Get all projects (public)
+router.get('/projects', projectController.getProjects);
+
+// Get a single project by ID (public)
+router.get('/projects/:id', projectController.getProjectById);
+
+// Update project (requires authentication and owner authorization)
+router.put('/projects/:id', authenticateToken, projectController.updateProject);
+
+// Delete project (requires authentication and owner authorization)
+router.delete('/projects/:id', authenticateToken, projectController.deleteProject);
+
+router.post("/projects/:id/report", authenticateToken, projectController.reportProject);
+
+//job hire
+
+// New route to get job seeker by ID
+router.get("/jobseekers/:id", authenticateToken, userController.getJobSeekerById);
+
+router.post("/hire-requests/send", authenticateToken, hireRequestController.sendHireRequest);
+
+
+
+module.exports = router;
