@@ -8,11 +8,18 @@ const HireRequest = require("../models/HireRequestSchema");
 const getApplicationsForHiringPerson = async (req, res) => {
   try {
     const hiringPersonId = req.userId;
+    console.log("✅ userId from token:", req.userId);
 
-    const projects = await Project.find({ userId: hiringPersonId }).select("_id");
-    const projectIds = projects.map(p => p._id);
+    const projects = await Project.find({ userId: hiringPersonId }).select(
+      "_id"
+    );
+    console.log("📦 Projects posted by this user:", projects);
+    const projectIds = projects.map((p) => p._id);
 
-    const quotations = await Quotation.find({ jobId: { $in: projectIds }, status: { $ne: "withdrawn" } })
+    const quotations = await Quotation.find({
+      jobId: { $in: projectIds },
+      status: { $ne: "withdrawn" },
+    })
       .populate("userId", "name email skills experience")
       .populate("jobId", "title");
 
@@ -47,8 +54,9 @@ const updateApplicationStatus = async (req, res) => {
 };
 const getApplicationsForJobSeeker = async (req, res) => {
   try {
-    const applications = await Quotation.find({ userId: req.params.id })
-      .populate("jobId", "title");
+    const applications = await Quotation.find({
+      userId: req.params.id,
+    }).populate("jobId", "title");
     res.status(200).json(applications);
   } catch (err) {
     console.error("Error fetching job seeker applications:", err);
@@ -68,7 +76,9 @@ const withdrawApplication = async (req, res) => {
     application.status = "withdrawn";
     await application.save();
 
-    res.status(200).json({ message: "Application withdrawn successfully", application });
+    res
+      .status(200)
+      .json({ message: "Application withdrawn successfully", application });
   } catch (err) {
     console.error("Error withdrawing application:", err);
     res.status(500).json({ message: "Server error" });
@@ -115,9 +125,12 @@ const submitCompletedWork = async (req, res) => {
 const approveSubmission = async (req, res) => {
   const { submissionId } = req.params;
 
-  const application = await Application.findOne({ "submission._id": submissionId });
+  const application = await Application.findOne({
+    "submission._id": submissionId,
+  });
 
-  if (!application) return res.status(404).json({ message: "Submission not found" });
+  if (!application)
+    return res.status(404).json({ message: "Submission not found" });
 
   application.submission.status = "approved";
   await application.save();
@@ -128,9 +141,12 @@ const approveSubmission = async (req, res) => {
 const requestChanges = async (req, res) => {
   const { submissionId } = req.params;
 
-  const application = await Application.findOne({ "submission._id": submissionId });
+  const application = await Application.findOne({
+    "submission._id": submissionId,
+  });
 
-  if (!application) return res.status(404).json({ message: "Submission not found" });
+  if (!application)
+    return res.status(404).json({ message: "Submission not found" });
 
   application.submission.status = "changes_requested";
   await application.save();
@@ -138,9 +154,12 @@ const requestChanges = async (req, res) => {
   res.json({ message: "Changes requested." });
 };
 
-
-
-
-
-
-module.exports = { getApplicationsForHiringPerson,approveSubmission, requestChanges, updateApplicationStatus, getApplicationsForJobSeeker, withdrawApplication, submitCompletedWork, };
+module.exports = {
+  getApplicationsForHiringPerson,
+  approveSubmission,
+  requestChanges,
+  updateApplicationStatus,
+  getApplicationsForJobSeeker,
+  withdrawApplication,
+  submitCompletedWork,
+};

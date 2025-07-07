@@ -8,7 +8,7 @@ exports.createPaymentOrder = async (req, res) => {
     return res.status(400).json({ message: "Missing required fields" });
 
   const options = {
-    amount: amount * 100, // paise
+    amount: amount * 100, 
     currency,
     receipt: `receipt_order_${Date.now()}`,
   };
