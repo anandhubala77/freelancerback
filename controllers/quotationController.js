@@ -40,6 +40,8 @@ const getQuotationsByJobId = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch quotations" });
   }
 };
+const Project = require("../models/projectSchema"); // ADD if not already imported
+
 const updateQuotationStatus = async (req, res) => {
   const { quotationId } = req.params;
   const { status } = req.body;
@@ -54,15 +56,26 @@ const updateQuotationStatus = async (req, res) => {
       { status },
       { new: true }
     );
+
     if (!updated) {
       return res.status(404).json({ error: "Quotation not found" });
     }
+
+    // ✅ If accepted, update corresponding Project status and freelancer
+    if (status === "accepted") {
+      await Project.findByIdAndUpdate(updated.jobId, {
+        status: "active",
+        freelancer: updated.userId,
+      });
+    }
+
     res.status(200).json({ message: `Quotation ${status}`, updated });
   } catch (error) {
     console.error("Status update error:", error);
     res.status(500).json({ error: "Failed to update status" });
   }
 };
+
 
 module.exports = {
   createQuotation,

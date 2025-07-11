@@ -40,6 +40,9 @@ const userSchema = new mongoose.Schema(
     linkedin: {
       type: String,
     },
+    profile: {
+      type: String, // file path like 'uploads/1234-image.jpg'
+    },
     profileimg: {
       type: String,
     },

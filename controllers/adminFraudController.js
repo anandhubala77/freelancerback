@@ -45,5 +45,12 @@ const getAllFraudReports = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+// Delete a specific fraud report (project or user)
+c
+module.exports = {
+  getAllFraudReports,
+  deleteFraudReport, // <-- Add this
+};
 
-module.exports = { getAllFraudReports };
+
+

@@ -124,6 +124,22 @@ exports.getAllPayments = async (req, res) => {
   }
 };
 
+// DELETE /api/payment/:id
+exports.deletePayment = async (req, res) => {
+  try {
+    const payment = await Payment.findByIdAndDelete(req.params.id);
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+
+    res.status(200).json({ message: "Payment deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete payment", error });
+  }
+};
+
+
 
 
 

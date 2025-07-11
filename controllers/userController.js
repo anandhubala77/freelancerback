@@ -9,7 +9,9 @@ exports.registerUser = async (req, res) => {
   try {
     const existingUser = await users.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({ message: "Account already exists, please login" });
+      return res
+        .status(409)
+        .json({ message: "Account already exists, please login" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -42,7 +44,10 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const isPasswordCorrect = await bcrypt.compare(password, existingUser.password);
+    const isPasswordCorrect = await bcrypt.compare(
+      password,
+      existingUser.password
+    );
     if (!isPasswordCorrect) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
@@ -59,6 +64,15 @@ exports.loginUser = async (req, res) => {
       lastName: existingUser.lastName,
       email: existingUser.email,
       role: existingUser.role,
+      profileimg: existingUser.profileimg || "",
+      companyName: existingUser.companyName || "",
+      companyDescription: existingUser.companyDescription || "",
+      position: existingUser.position || "",
+      skills: existingUser.skills || [],
+      education: existingUser.education || [],
+      experience: existingUser.experience || [],
+      google: existingUser.google || "",
+      linkedin: existingUser.linkedin || "",
     };
 
     return res.status(200).json({
@@ -133,20 +147,24 @@ exports.updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    // Update common fields
-    if (name !== undefined) user.name = name;
-    if (lastName !== undefined) user.lastName = lastName;
-    if (email !== undefined) user.email = email;
-    if (skills !== undefined) user.skills = skills;
-    if (education !== undefined) user.education = education;
-    if (experience !== undefined) user.experience = experience;
-    if (profileimg !== undefined) user.profileimg = profileimg;
+    if (typeof name === "string") user.name = name;
+    if (typeof lastName === "string") user.lastName = lastName;
+    if (typeof email === "string") user.email = email;
+    if (skills) user.skills = skills;
+    if (education) user.education = education;
+    if (experience) user.experience = experience;
+
+    // ✅ Protect from empty strings overwriting existing image
+    if (typeof profileimg === "string" && profileimg.trim() !== "") {
+      user.profileimg = profileimg.trim();
+    }
 
     // Hiring person specific
     if (user.role === "hiringperson") {
-      if (companyName !== undefined) user.companyName = companyName;
-      if (companyDescription !== undefined) user.companyDescription = companyDescription;
-      if (position !== undefined) user.position = position;
+      if (typeof companyName === "string") user.companyName = companyName;
+      if (typeof companyDescription === "string")
+        user.companyDescription = companyDescription;
+      if (typeof position === "string") user.position = position;
     }
 
     await user.save();
@@ -238,7 +256,8 @@ exports.updatePassword = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Old password is incorrect" });
+    if (!isMatch)
+      return res.status(400).json({ message: "Old password is incorrect" });
 
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedNewPassword;

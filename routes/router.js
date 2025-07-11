@@ -46,10 +46,10 @@ router.post("/users/:id/report", authenticateToken, userController.reportJobSeek
 // Example for roles: router.post('/projects', authenticateToken, authorizeRoles('company', 'employer'), projectController.createProject);
 router.post("/projects", authenticateToken, upload.single("image"),projectController.createProject); // Use authenticateToken for now
 // Get all projects (public)
-router.get('/projects', projectController.getProjects);
+router.get('/projects', authenticateToken,projectController.getProjects);
 
 // Get a single project by ID (public)
-router.get('/projects/:id', projectController.getProjectById);
+router.get('/projects/:id',authenticateToken, projectController.getProjectById);
 
 // Update project (requires authentication and owner authorization)
 router.put('/projects/:id', authenticateToken, projectController.updateProject);

@@ -7,6 +7,8 @@ const {
   getReceivedPayments,
   getAllPayments,
   getSentPaymentsHiring,
+  deletePayment,
+  
 } = require('../controllers/paymentController');
 
 router.post('/payment/create-order', createPaymentOrder);
@@ -19,6 +21,11 @@ router.get("/payment/received/:freelancerId", getReceivedPayments);
 router.get('/payment/sent/:userId', getSentPaymentsHiring);
 
 router.get('/payment/admin/all-payments', getAllPayments);
+
+router.delete("/payments/:id", deletePayment);
+
+
+
 
 module.exports = router;
 

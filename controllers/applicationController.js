@@ -89,11 +89,6 @@ const submitCompletedWork = async (req, res) => {
   const { link, message } = req.body;
   const quotationId = req.params.id;
 
-  console.log("🔥 HIT submitCompletedWork route");
-  console.log("quotationId:", quotationId);
-  console.log("userId from token:", req.userId);
-  console.log("body:", req.body);
-
   try {
     const quotation = await Quotation.findById(quotationId);
 
@@ -101,7 +96,6 @@ const submitCompletedWork = async (req, res) => {
       return res.status(404).json({ message: "Quotation not found" });
     }
 
-    // Authorization check
     if (quotation.userId.toString() !== req.userId) {
       return res.status(403).json({ message: "Unauthorized" });
     }
@@ -114,13 +108,19 @@ const submitCompletedWork = async (req, res) => {
 
     await quotation.save();
 
+    // ✅ Update the related project status to "completed"
+    await Project.findByIdAndUpdate(quotation.jobId, {
+      status: "completed",
+      progress: 100,
+      completionDate: new Date(),
+    });
+
     res.status(200).json({ message: "Work submitted successfully", quotation });
   } catch (error) {
     console.error("❌ Error in submitCompletedWork:", error);
     res.status(500).json({ message: "Server error. Failed to submit work." });
   }
 };
-// controllers/applicationController.js
 
 const approveSubmission = async (req, res) => {
   const { submissionId } = req.params;

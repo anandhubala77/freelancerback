@@ -35,6 +35,7 @@ pfServer.use("/", paymentRoute);
 pfServer.use("/admin", adminRoutes);
 
 //image upload
+
 pfServer.use("/uploads", express.static("uploads")); 
 
 // 10) define PORT

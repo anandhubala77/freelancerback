@@ -79,10 +79,23 @@ const createProject = asyncHandler(async (req, res) => {
 // @route   GET /api/projects
 // @access  Public
 const getProjects = asyncHandler(async (req, res) => {
-  const projects = await Project.find({})
-    .populate('userId', 'name email')
-    .sort({ createdAt: -1 });
+  const { role, _id } = req.user || {}; // assuming you're attaching user via auth middleware
 
+  let projects;
+
+  if (role === 'hiringperson') {
+    // Fetch only projects posted by this hiring person
+    projects = await Project.find({ userId: _id })
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 });
+  } else {
+    // Jobseekers and others get all projects
+    projects = await Project.find({})
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 });
+  }
+
+  // Attach full image URL
   const fullProjects = projects.map((project) => ({
     ...project._doc,
     image: project.image
@@ -92,6 +105,7 @@ const getProjects = asyncHandler(async (req, res) => {
 
   res.status(200).json(fullProjects);
 });
+
 
 // @desc    Get single project
 // @route   GET /api/projects/:id
