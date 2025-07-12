@@ -16,6 +16,7 @@ const quotationRoutes = require("./routes/quotationRoutes");
 const applicationRoute = require("./routes/applicationRoute");
 const paymentRoute = require("./routes/paymentRoute");
 const adminRoutes = require("./routes/adminRoutes");
+const notificationRoute = require("./routes/notificationRoute");
 // 6) create express server
 const pfServer = express();
 
@@ -33,6 +34,9 @@ pfServer.use("/", quotationRoutes);
 pfServer.use("/", applicationRoute);
 pfServer.use("/", paymentRoute);
 pfServer.use("/admin", adminRoutes);
+
+pfServer.use("/notifications", notificationRoute);
+
 
 //image upload
 

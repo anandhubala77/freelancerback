@@ -1,4 +1,5 @@
 const Quotation = require('../models/quotationSchema');
+const Project = require("../models/projectSchema");
 
 const createQuotation = async (req, res) => {
   try {
@@ -40,7 +41,7 @@ const getQuotationsByJobId = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch quotations" });
   }
 };
-const Project = require("../models/projectSchema"); // ADD if not already imported
+ // ADD if not already imported
 
 const updateQuotationStatus = async (req, res) => {
   const { quotationId } = req.params;
@@ -75,12 +76,27 @@ const updateQuotationStatus = async (req, res) => {
     res.status(500).json({ error: "Failed to update status" });
   }
 };
+// Get all quotations by the logged-in user
+
+const getMyQuotations = async (req, res) => {
+  try {
+    const quotations = await Quotation.find({ userId: req.userId }).populate('jobId');
+    res.status(200).json(quotations);
+  } catch (error) {
+    console.error("Error fetching my quotations:", error.message);
+    res.status(500).json({ error: "Failed to fetch quotations" });
+  }
+};
+
+
+
 
 
 module.exports = {
   createQuotation,
   getQuotationsByJobId,
   updateQuotationStatus,
+  getMyQuotations,
 };
 
 

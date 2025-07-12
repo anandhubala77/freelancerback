@@ -3,6 +3,10 @@ const User = require("../models/userSchema");
 const razorpay = require("../utils/razorpay");
 const Quotation = require("../models/quotationSchema");
 const Payment = require("../models/paymentSchema");
+const Notification = require("../models/notificationSchema");
+;
+
+
 
 // GET /admin/projects
 exports.getAllProjects = async (req, res) => {
@@ -61,21 +65,70 @@ exports.deleteUser = async (req, res) => {
 };
 
 // GET all project reports and user reports for admin
+// exports.getFraudReports = async (req, res) => {
+//   try {
+//     // --- 1. Fetch Project Reports ---
+//     const projectsWithReports = await Project.find({
+//       "reports.0": { $exists: true },
+//     }).select("_id reports");
+
+//     const projectReports = projectsWithReports.flatMap((project) =>
+//       project.reports.map((report) => ({
+//         reportId: report._id,
+//         projectId: project._id,
+//         reportedBy: report.reportedBy,
+//         reason: report.reason,
+//         createdAt: report.createdAt,
+//         type: "Project", // 👈 Add this for frontend filtering
+//       }))
+//     );
+
+//     // --- 2. Fetch Jobseeker Reports ---
+//     const usersWithReports = await User.find({
+//       role: "jobseeker",
+//       "reportedBy.0": { $exists: true },
+//     }).select("_id reportedBy");
+
+//     const userReports = usersWithReports.flatMap((user) =>
+//       user.reportedBy.map((report) => ({
+//         reportId: report._id, // ✅ Include this for delete endpoint
+//         jobseekerId: user._id,
+//         reportedBy: report.reporterId,
+//         reason: report.reason,
+//         createdAt: report.reportedAt,
+//         type: "Job Seeker", // 👈 Add this for frontend filtering
+//       }))
+//     );
+
+//     return res.status(200).json({ projectReports, userReports });
+//   } catch (error) {
+//     console.error("Error fetching fraud reports:", error);
+//     res.status(500).json({ message: "Server Error", error });
+//   }
+// };
+
+// GET all project reports and user reports for admin
 exports.getFraudReports = async (req, res) => {
   try {
     // --- 1. Fetch Project Reports ---
     const projectsWithReports = await Project.find({
       "reports.0": { $exists: true },
-    }).select("_id reports");
+    }).select("_id reports").populate("reports.reportedBy", "name");
 
     const projectReports = projectsWithReports.flatMap((project) =>
       project.reports.map((report) => ({
         reportId: report._id,
         projectId: project._id,
-        reportedBy: report.reportedBy,
+        reportedBy: {
+          _id: report.reportedBy?._id,
+          name: report.reportedBy?.name,
+        },
         reason: report.reason,
         createdAt: report.createdAt,
-        type: "Project", // 👈 Add this for frontend filtering
+        responseMessage: report.responseMessage || null,
+        responseAt: report.responseAt || null,
+        hasResponded: !!report.responseMessage, // ✅ for UI
+        type: "Project",
       }))
     );
 
@@ -83,16 +136,22 @@ exports.getFraudReports = async (req, res) => {
     const usersWithReports = await User.find({
       role: "jobseeker",
       "reportedBy.0": { $exists: true },
-    }).select("_id reportedBy");
+    }).select("_id reportedBy").populate("reportedBy.reporterId", "name");
 
     const userReports = usersWithReports.flatMap((user) =>
       user.reportedBy.map((report) => ({
-        reportId: report._id, // ✅ Include this for delete endpoint
+        reportId: report._id,
         jobseekerId: user._id,
-        reportedBy: report.reporterId,
+        reportedBy: {
+          _id: report.reporterId?._id,
+          name: report.reporterId?.name,
+        },
         reason: report.reason,
         createdAt: report.reportedAt,
-        type: "Job Seeker", // 👈 Add this for frontend filtering
+        responseMessage: report.responseMessage || null,
+        responseAt: report.responseAt || null,
+        hasResponded: !!report.responseMessage, // ✅ for UI
+        type: "Job Seeker",
       }))
     );
 
@@ -102,6 +161,7 @@ exports.getFraudReports = async (req, res) => {
     res.status(500).json({ message: "Server Error", error });
   }
 };
+
 
 exports.deleteFraudReport = async (req, res) => {
   const { type, reportedOnId, reportId } = req.params;
@@ -302,3 +362,51 @@ exports.getPaymentById = async (req, res) => {
     res.status(500).json({ message: "Error fetching payment", error: err });
   }
 };
+// adminController.js
+exports.sendReportResponse = async (req, res) => {
+  try {
+    const { reportType, reportId, responseMessage } = req.body;
+
+    if (reportType === "project") {
+      const project = await Project.findOne({ "reports._id": reportId });
+      if (!project) return res.status(404).json({ message: "Project report not found" });
+
+      const report = project.reports.id(reportId);
+      report.responseMessage = responseMessage;
+      report.responseAt = new Date();
+      await project.save();
+
+      // ✅ Send notification to jobseeker (report.reportedBy)
+      await Notification.create({
+        userId: report.reportedBy,
+        message: `Admin responded to your report on a project: "${responseMessage}"`,
+      });
+
+    } else if (reportType === "user") {
+      const user = await User.findOne({ "reportedBy._id": reportId });
+      if (!user) return res.status(404).json({ message: "User report not found" });
+
+      const report = user.reportedBy.id(reportId);
+      report.responseMessage = responseMessage;
+      report.responseAt = new Date();
+      await user.save();
+
+      // ✅ Send notification to hiring person (report.reporterId)
+      await Notification.create({
+        userId: report.reporterId,
+        message: `Admin responded to your report on a job seeker: "${responseMessage}"`,
+      });
+    } else {
+      return res.status(400).json({ message: "Invalid report type" });
+    }
+
+    res.status(200).json({ message: "Response sent and notification delivered." });
+  } catch (error) {
+    console.error("Error in sendReportResponse:", error);
+    res.status(500).json({ message: "Failed to send response", error });
+  }
+};
+
+
+
+

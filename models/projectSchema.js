@@ -81,6 +81,8 @@ const projectSchema = new mongoose.Schema({
       reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
       reason: String,
       createdAt: { type: Date, default: Date.now },
+      responseMessage: String,
+        responseAt: Date,
     },
   ],
 }, {

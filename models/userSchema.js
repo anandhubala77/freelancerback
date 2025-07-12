@@ -52,6 +52,8 @@ const userSchema = new mongoose.Schema(
         reporterId: { type: mongoose.Schema.Types.ObjectId, ref: "users" },
         reason: String,
         reportedAt: { type: Date, default: Date.now },
+        responseMessage: String,
+        responseAt: Date,
       },
     ],
 

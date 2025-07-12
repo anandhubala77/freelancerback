@@ -43,6 +43,7 @@ const {
   getAdminStats,
   getAdminDashboardMetrics ,
   getPaymentById,
+  sendReportResponse,
   
 } = require("../controllers/adminController");
 
@@ -64,10 +65,14 @@ router.delete("/users/:id", deleteUser);
 
 // Fraud Reports
 router.get("/fraud-reports", getFraudReports);
+
 router.delete("/fraud-reports/:type/:reportedOnId/:reportId", deleteFraudReport);
 
 // Admin Profile image upload
 router.put("/upload-profile", authenticateToken, upload.single("profile"), uploadProfileImage);
+
+
+router.post("/respond-report", sendReportResponse);
 
 module.exports = router;
 
