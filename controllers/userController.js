@@ -13,6 +13,10 @@ exports.registerUser = async (req, res) => {
         .status(409)
         .json({ message: "Account already exists, please login" });
     }
+    const allowedRoles = ["jobseeker", "hiringperson"];
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ message: "Invalid role selected" });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
