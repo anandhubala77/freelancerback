@@ -52,7 +52,7 @@ router.get('/projects', authenticateToken,projectController.getProjects);
 router.get('/projects/:id',authenticateToken, projectController.getProjectById);
 
 // Update project (requires authentication and owner authorization)
-router.put('/projects/:id', authenticateToken, projectController.updateProject);
+router.put('/projects/:id', authenticateToken, upload.single('image'), projectController.updateProject);
 
 // Delete project (requires authentication and owner authorization)
 router.delete('/projects/:id', authenticateToken, projectController.deleteProject);

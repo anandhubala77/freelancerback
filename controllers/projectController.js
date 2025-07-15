@@ -78,24 +78,49 @@ const createProject = asyncHandler(async (req, res) => {
 // @desc    Get all projects
 // @route   GET /api/projects
 // @access  Public
+// const getProjects = asyncHandler(async (req, res) => {
+//   const { role, _id } = req.user || {}; // assuming you're attaching user via auth middleware
+
+//   let projects;
+
+//   if (role === 'hiringperson') {
+//     // Fetch only projects posted by this hiring person
+//     projects = await Project.find({ userId: _id })
+//       .populate('userId', 'name email')
+//       .sort({ createdAt: -1 });
+//   } else {
+//     // Jobseekers and others get all projects
+//     projects = await Project.find({})
+//       .populate('userId', 'name email')
+//       .sort({ createdAt: -1 });
+//   }
+
+//   // Attach full image URL
+//   const fullProjects = projects.map((project) => ({
+//     ...project._doc,
+//     image: project.image
+//       ? `${req.protocol}://${req.get('host')}/uploads/${project.image}`
+//       : "",
+//   }));
+
+//   res.status(200).json(fullProjects);
+// });
 const getProjects = asyncHandler(async (req, res) => {
   const { role, _id } = req.user || {}; // assuming you're attaching user via auth middleware
 
-  let projects;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 6;
+  const skip = (page - 1) * limit;
 
-  if (role === 'hiringperson') {
-    // Fetch only projects posted by this hiring person
-    projects = await Project.find({ userId: _id })
-      .populate('userId', 'name email')
-      .sort({ createdAt: -1 });
-  } else {
-    // Jobseekers and others get all projects
-    projects = await Project.find({})
-      .populate('userId', 'name email')
-      .sort({ createdAt: -1 });
-  }
+  const filter = role === 'hiringperson' ? { userId: _id } : {};
 
-  // Attach full image URL
+  const totalProjects = await Project.countDocuments(filter);
+  const projects = await Project.find(filter)
+    .populate('userId', 'name email')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
   const fullProjects = projects.map((project) => ({
     ...project._doc,
     image: project.image
@@ -103,7 +128,12 @@ const getProjects = asyncHandler(async (req, res) => {
       : "",
   }));
 
-  res.status(200).json(fullProjects);
+  res.status(200).json({
+    projects: fullProjects,
+    totalProjects,
+    currentPage: page,
+    totalPages: Math.ceil(totalProjects / limit),
+  });
 });
 
 
@@ -129,8 +159,8 @@ const getProjectById = asyncHandler(async (req, res) => {
 });
 
 // @desc    Update project
-// @route   PUT /api/projects/:id
-// @access  Private
+
+
 const updateProject = asyncHandler(async (req, res) => {
   const {
     title,
@@ -185,6 +215,87 @@ const updateProject = asyncHandler(async (req, res) => {
     },
   });
 });
+
+
+// const updateProject = asyncHandler(async (req, res) => {
+//   const {
+//     title,
+//     description,
+//     budget,
+//     skillsRequired,
+//     timeline,
+//     category,
+//     location,
+//     status,
+//     assignedTo,
+//     progress,
+//     completionDate,
+//   } = req.body;
+
+//   let project = await Project.findById(req.params.id);
+//   if (!project) {
+//     res.status(404);
+//     throw new Error('Project not found.');
+//   }
+
+//   if (project.userId.toString() !== req.userId.toString()) {
+//     res.status(403);
+//     throw new Error('Not authorized to update this project.');
+//   }
+
+//   project.title = title || project.title;
+//   project.description = description || project.description;
+//   project.timeline = timeline || project.timeline;
+//   project.category = category || project.category;
+//   project.location = location || project.location;
+
+//   // 🛠 Correct parsing for budget
+//   if (budget !== undefined) {
+//     const parsedBudget = parseFloat(budget);
+//     if (!isNaN(parsedBudget)) {
+//       project.budget = parsedBudget;
+//     }
+//   }
+
+//   // 🛠 Parse skills from string to array
+//   if (skillsRequired) {
+//     project.skillsRequired = skillsRequired
+//       .split(',')
+//       .map((s) => s.trim())
+//       .filter(Boolean);
+//   }
+
+//   // 🛠 Parse progress if present
+//   if (progress !== undefined) {
+//     const parsedProgress = parseFloat(progress);
+//     if (!isNaN(parsedProgress)) {
+//       project.progress = parsedProgress;
+//     }
+//   }
+
+//   if (status) project.status = status;
+//   if (assignedTo) project.assignedTo = assignedTo;
+//   if (completionDate) project.completionDate = completionDate;
+
+//   // ✅ Save image only if uploaded
+//   if (req.file) {
+//     project.image = req.file.filename;
+//   }
+
+//   const updatedProject = await project.save();
+
+//   res.status(200).json({
+//     message: 'Project updated successfully!',
+//     project: {
+//       ...updatedProject._doc,
+//       image: updatedProject.image
+//         ? `${req.protocol}://${req.get('host')}/uploads/${updatedProject.image}`
+//         : '',
+//     },
+//   });
+// });
+
+
 
 // @desc    Delete project
 // @route   DELETE /api/projects/:id
