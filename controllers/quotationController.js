@@ -87,6 +87,36 @@ const getMyQuotations = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch quotations" });
   }
 };
+ const requestCorrection = async (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: "Correction message is required" });
+  }
+
+  try {
+    const updated = await Quotation.findByIdAndUpdate(
+      id,
+      {
+        correctionRequest: {
+          message,
+          requestedAt: new Date(),
+          responded: false,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ error: "Quotation not found" });
+    }
+
+    res.json({ message: "Correction requested", quotation: updated });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", detail: err.message });
+  }
+};
 
 
 
@@ -97,6 +127,7 @@ module.exports = {
   getQuotationsByJobId,
   updateQuotationStatus,
   getMyQuotations,
+  requestCorrection
 };
 
 

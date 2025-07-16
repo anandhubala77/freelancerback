@@ -1,339 +1,191 @@
-const Project = require('../models/projectSchema');
-const asyncHandler = require('express-async-handler');
+const express = require('express');
+const Payment = require("../models/paymentSchema");
+const router = express.Router();
+const {
+  createPaymentOrder,
+  markPaymentSuccess,
+  getReceivedPayments,
+  getAllPayments,
+  getSentPaymentsHiring,
+  deletePayment,
+  
+} = require('../controllers/paymentController');
 
+router.post('/payment/create-order', createPaymentOrder);
+router.post('/payment/mark-success', markPaymentSuccess);
 
-const createProject = asyncHandler(async (req, res) => {
-  console.log("REQ.BODY:", req.body); // ✅ log body
-  console.log("REQ.FILE:", req.file); // ✅ log uploaded file
+router.get("/payment/received/:freelancerId", getReceivedPayments);
 
-  const {
-    title,
-    description,
-    budget,
-    skillsRequired,
-    timeline,
-    category,
-    location,
-  } = req.body;
+// router.get("/payment/sent/:hiringPersonId", getSentPayments);
 
-  // Validate required fields
-  if (!title || !description || !budget || !category) {
-    res.status(400);
-    throw new Error(
-      'Please fill all required project fields: title, description, budget, category.'
-    );
-  }
+router.get('/payment/sent/:userId', getSentPaymentsHiring);
 
-  // Parse budget
-  const parsedBudget = parseFloat(budget);
-  if (isNaN(parsedBudget) || parsedBudget < 0) {
-    res.status(400);
-    throw new Error('Budget must be a positive number.');
-  }
+router.get('/payment/admin/all-payments', getAllPayments);
 
-  // Handle userId from middleware
-  const userId = req.userId || (req.user && req.user._id);
-  if (!userId) {
-    res.status(401);
-    throw new Error("Unauthorized: Missing user ID.");
-  }
-
-  // Handle image from multer
-  const image = req.file ? req.file.filename : "";
-
-  // Handle skills (if sent as comma-separated string or array)
-  let skillsArray = [];
-  if (typeof skillsRequired === 'string') {
-    skillsArray = skillsRequired
-      .split(',')
-      .map((skill) => skill.trim())
-      .filter(Boolean);
-  } else if (Array.isArray(skillsRequired)) {
-    skillsArray = skillsRequired.map((s) => s.trim()).filter(Boolean);
-  }
-
-  const project = await Project.create({
-    userId,
-    title,
-    description,
-    budget: parsedBudget,
-    skillsRequired: skillsArray,
-    timeline: timeline || 'Flexible',
-    category,
-    location: location || 'Remote',
-    image,
-    status: 'posted',
-  });
-
-  res.status(201).json({
-    message: 'Project posted successfully!',
-    project,
-  });
-});
+router.delete("/payments/:id", deletePayment);
 
 
 
-// --- rest of your unchanged functions ---
 
-// @desc    Get all projects
-// @route   GET /api/projects
-// @access  Public
-const getProjects = asyncHandler(async (req, res) => {
-  const { role, _id } = req.user || {}; // assuming you're attaching user via auth middleware
-
-  let projects;
-
-  if (role === 'hiringperson') {
-    // Fetch only projects posted by this hiring person
-    projects = await Project.find({ userId: _id })
-      .populate('userId', 'name email')
-      .sort({ createdAt: -1 });
-  } else {
-    // Jobseekers and others get all projects
-    projects = await Project.find({})
-      .populate('userId', 'name email')
-      .sort({ createdAt: -1 });
-  }
-
-  // Attach full image URL
-  const fullProjects = projects.map((project) => ({
-    ...project._doc,
-    image: project.image
-      ? `${req.protocol}://${req.get('host')}/uploads/${project.image}`
-      : "",
-  }));
-
-  res.status(200).json(fullProjects);
-});
+module.exports = router;
 
 
-// @desc    Get single project
-// @route   GET /api/projects/:id
-// @access  Public
-const getProjectById = asyncHandler(async (req, res) => {
-  const project = await Project.findById(req.params.id).populate('userId', 'name email');
+const Payment = require('../models/paymentSchema');
+const razorpay = require("../utils/razorpay");
 
-  if (!project) {
-    res.status(404);
-    throw new Error('Project not found.');
-  }
+exports.createPaymentOrder = async (req, res) => {
+  const { amount, jobId, paidTo, currency = "INR" } = req.body;
 
-  const fullProject = {
-    ...project._doc,
-    image: project.image
-      ? `${req.protocol}://${req.get('host')}/uploads/${project.image}`
-      : "",
+  if (!amount || !jobId || !paidTo)
+    return res.status(400).json({ message: "Missing required fields" });
+
+  const options = {
+    amount: amount * 100, 
+    currency,
+    receipt: `receipt_order_${Date.now()}`,
   };
 
-  res.status(200).json(fullProject);
-});
+  try {
+    const order = await razorpay.orders.create(options);
 
-// @desc    Update project
+    res.json({
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      jobId,
+      paidTo,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Payment initiation failed", error: err });
+  }
+};
 
 
-const updateProject = asyncHandler(async (req, res) => {
+// controllers/paymentController.js
+
+exports.markPaymentSuccess = async (req, res) => {
   const {
-    title,
-    description,
-    budget,
-    skillsRequired,
-    timeline,
-    category,
-    location,
-    status,
-    assignedTo,
-    progress,
-    completionDate,
-    image,
+    razorpayPaymentId,
+    razorpayOrderId,
+    amount,
+    jobId,
+    quotationId,
+    paidBy,
+    paidTo,
   } = req.body;
 
-  let project = await Project.findById(req.params.id);
-
-  if (!project) {
-    res.status(404);
-    throw new Error('Project not found.');
+  if (
+    !razorpayPaymentId ||
+    !razorpayOrderId ||
+    !amount ||
+    !jobId ||
+    !quotationId ||
+    !paidBy ||
+    !paidTo
+  ) {
+    return res.status(400).json({ message: "Missing required fields" });
   }
 
-  if (project.userId.toString() !== req.userId.toString()) {
-    res.status(403);
-    throw new Error('Not authorized to update this project.');
-  }
-
-  project.title = title || project.title;
-  project.description = description || project.description;
-  project.budget = budget !== undefined ? budget : project.budget;
-  project.skillsRequired = skillsRequired || project.skillsRequired;
-  project.timeline = timeline || project.timeline;
-  project.category = category || project.category;
-  project.location = location || project.location;
-  project.image = image || project.image;
-
-  if (status) project.status = status;
-  if (assignedTo) project.assignedTo = assignedTo;
-  if (progress !== undefined) project.progress = progress;
-  if (completionDate) project.completionDate = completionDate;
-
-  const updatedProject = await project.save();
-
-  res.status(200).json({
-    message: 'Project updated successfully!',
-    project: {
-      ...updatedProject._doc,
-      image: updatedProject.image
-        ? `${req.protocol}://${req.get('host')}/uploads/${updatedProject.image}`
-        : "",
-    },
-  });
-});
-
-
-// const updateProject = asyncHandler(async (req, res) => {
-//   const {
-//     title,
-//     description,
-//     budget,
-//     skillsRequired,
-//     timeline,
-//     category,
-//     location,
-//     status,
-//     assignedTo,
-//     progress,
-//     completionDate,
-//   } = req.body;
-
-//   let project = await Project.findById(req.params.id);
-//   if (!project) {
-//     res.status(404);
-//     throw new Error('Project not found.');
-//   }
-
-//   if (project.userId.toString() !== req.userId.toString()) {
-//     res.status(403);
-//     throw new Error('Not authorized to update this project.');
-//   }
-
-//   project.title = title || project.title;
-//   project.description = description || project.description;
-//   project.timeline = timeline || project.timeline;
-//   project.category = category || project.category;
-//   project.location = location || project.location;
-
-//   // 🛠 Correct parsing for budget
-//   if (budget !== undefined) {
-//     const parsedBudget = parseFloat(budget);
-//     if (!isNaN(parsedBudget)) {
-//       project.budget = parsedBudget;
-//     }
-//   }
-
-//   // 🛠 Parse skills from string to array
-//   if (skillsRequired) {
-//     project.skillsRequired = skillsRequired
-//       .split(',')
-//       .map((s) => s.trim())
-//       .filter(Boolean);
-//   }
-
-//   // 🛠 Parse progress if present
-//   if (progress !== undefined) {
-//     const parsedProgress = parseFloat(progress);
-//     if (!isNaN(parsedProgress)) {
-//       project.progress = parsedProgress;
-//     }
-//   }
-
-//   if (status) project.status = status;
-//   if (assignedTo) project.assignedTo = assignedTo;
-//   if (completionDate) project.completionDate = completionDate;
-
-//   // ✅ Save image only if uploaded
-//   if (req.file) {
-//     project.image = req.file.filename;
-//   }
-
-//   const updatedProject = await project.save();
-
-//   res.status(200).json({
-//     message: 'Project updated successfully!',
-//     project: {
-//       ...updatedProject._doc,
-//       image: updatedProject.image
-//         ? `${req.protocol}://${req.get('host')}/uploads/${updatedProject.image}`
-//         : '',
-//     },
-//   });
-// });
-
-
-
-// @desc    Delete project
-// @route   DELETE /api/projects/:id
-// @access  Private
-const deleteProject = asyncHandler(async (req, res) => {
-  const project = await Project.findById(req.params.id);
-
-  if (!project) {
-    res.status(404);
-    throw new Error('Project not found.');
-  }
-
-  if (project.userId.toString() !== req.userId.toString()) {
-    res.status(403);
-    throw new Error('Not authorized to delete this project.');
-  }
-
-  await Project.deleteOne({ _id: project._id });
-
-  res.status(200).json({ message: 'Project removed successfully.' });
-});
-
-// @desc    Report a project
-// @route   POST /api/projects/:id/report
-// @access  Private
-const reportProject = asyncHandler(async (req, res) => {
   try {
-    const projectId = req.params.id;
-    const { reason } = req.body;
-    const reporterId = req.userId;
-
-    if (!reason) {
-      return res.status(400).json({ message: "Reason is required." });
-    }
-
-    const project = await Project.findById(projectId);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found." });
-    }
-
-    const alreadyReported = project.reports?.some(
-      (report) => report.reportedBy.toString() === reporterId
-    );
-
-    if (alreadyReported) {
-      return res.status(400).json({ message: "You already reported this project." });
-    }
-
-    project.reports.push({
-      reportedBy: reporterId,
-      reason,
+    const payment = new Payment({
+      razorpayPaymentId,
+      razorpayOrderId,
+      amount,
+      jobId,
+      quotationId,
+      paidBy,
+      paidTo,
+      status: "completed",
+      paidAt: new Date(),
     });
 
-    await project.save();
+    await payment.save();
+    console.log("✅ Payment saved:", payment);
 
-    res.status(200).json({ message: "Project reported successfully" });
+    res.status(201).json({ message: "Payment stored successfully" });
   } catch (err) {
-    console.error("Error reporting project:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Payment Save Error:", err);
+    res.status(500).json({ message: "Failed to store payment", error: err });
   }
+};
+exports.getReceivedPayments = async (req, res) => {
+  const { freelancerId } = req.params;
+
+  try {
+    const payments = await Payment.find({ paidTo: freelancerId })
+      .populate("jobId", "title")
+      .populate("paidBy", "name email");
+
+    res.json(payments);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch payments", error });
+  }
+};
+
+
+
+
+
+exports.getSentPaymentsHiring = async (req, res) => {
+  const { userId } = req.params;
+  console.log("Fetching sent payments for:", userId);
+
+  try {
+    const payments = await Payment.find({ paidBy: userId })
+      .populate("jobId", "title")
+      .populate("paidTo", "name lastName");
+      console.log("Payments found:", payments);
+
+    res.json(payments);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch sent payments", error: err.message });
+  }
+};
+// Get all payments for admin
+exports.getAllPayments = async (req, res) => {
+  try {
+    const payments = await Payment.find()
+      .populate("jobId", "title")
+      .populate("quotationId", "_id")
+      .populate("paidBy", "name email role")
+      .populate("paidTo", "name email role");
+
+    res.status(200).json(payments);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch all payments", error });
+  }
+};
+
+// DELETE /api/payment/:id
+exports.deletePayment = async (req, res) => {
+  try {
+    const payment = await Payment.findByIdAndDelete(req.params.id);
+
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+
+    res.status(200).json({ message: "Payment deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete payment", error });
+  }
+};
+// utils/razorpay.js
+const Razorpay = require("razorpay");
+
+const razorpayInstance = new Razorpay({
+  key_id: "rzp_test_HnpMhDOhL0dI1d",
+  key_secret: "0ox7P6qS02HPp6I8oXJ5lRvy",
 });
 
-module.exports = {
-  createProject,
-  getProjects,
-  getProjectById,
-  updateProject,
-  deleteProject,
-  reportProject,
-};
-// Note: Ensure that the projectSchema includes the necessary fields like 'reports' to handle reporting functionality.
+module.exports = razorpayInstance;
+
+
+
+
+
+
+
+
+
+

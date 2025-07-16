@@ -19,5 +19,12 @@ router.patch(
   authorizeRoles('hiringperson'),
   quotationController.updateQuotationStatus
 );
+router.put(
+  "/quotations/:id/request-correction",
+  authenticateToken,
+  quotationController.requestCorrection
+);
+
+
 
 module.exports = router;

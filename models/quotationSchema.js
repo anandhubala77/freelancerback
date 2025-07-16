@@ -37,6 +37,15 @@ const quotationSchema = new mongoose.Schema({
     message: String,
     submittedAt: Date,
   },
+  correctionRequest: {
+    message: String,
+    requestedAt: Date,
+    responded: {
+      type: Boolean,
+      default: false,
+    },
+  }
+  
 });
 
 module.exports = mongoose.model("Quotation", quotationSchema);
